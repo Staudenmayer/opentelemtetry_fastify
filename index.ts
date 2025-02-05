@@ -1,3 +1,4 @@
+import "dotenv/config";
 import Fastify from 'fastify';
 import { logger, meter, tracer } from './tracing'; // Ensure OpenTelemetry is initialized
 import axios from 'axios';

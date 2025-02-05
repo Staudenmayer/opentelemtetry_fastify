@@ -13,7 +13,7 @@ import { metrics, trace } from '@opentelemetry/api';
 
 const resource = Resource.default().merge(
     new Resource({
-        [ATTR_SERVICE_NAME]: "bun-demo",
+        [ATTR_SERVICE_NAME]: process.env.SERVICE_NAME,
         [ATTR_SERVICE_VERSION]: "0.1.0",
     }),
 );
@@ -32,7 +32,7 @@ loggerProvider.addLogRecordProcessor(new SimpleLogRecordProcessor(logExporter));
 loggerProvider.addLogRecordProcessor(new SimpleLogRecordProcessor(consoleLogExporter));
 
 const sdk = new NodeSDK({
-    serviceName: "bun-demo",
+    serviceName: process.env.SERVICE_NAME,
     resource,
     metricReader,
     traceExporter,
@@ -49,7 +49,7 @@ process.on("beforeExit", async () => {
 
 sdk.start();
 
-export const logger = loggerProvider.getLogger("bun-demo");
-export const meter = metrics.getMeter("bun-demo");
-export const tracer = trace.getTracer("bun-demo");
+export const logger = loggerProvider.getLogger(process.env.SERVICE_NAME);
+export const meter = metrics.getMeter(process.env.SERVICE_NAME);
+export const tracer = trace.getTracer(process.env.SERVICE_NAME);
 //Metrics: https://betterstack.com/community/guides/observability/opentelemetry-metrics-nodejs/#step-8-sending-metrics-data-to-an-opentelemetry-backend
