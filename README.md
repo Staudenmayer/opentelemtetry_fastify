@@ -1,4 +1,4 @@
-# opentelemetr
+# opentelemetry
 
 To install dependencies:
 
