@@ -3,17 +3,17 @@ import Fastify from 'fastify';
 import { logger, meter, tracer } from './tracing'; // Ensure OpenTelemetry is initialized
 import axios from 'axios';
 
-const httpRequestCounter = meter.createCounter("http.server.requests", {
+const httpRequestCounter = meter.createCounter("fastify.server.requests", {
     description: "Total number of HTTP requests received.",
     unit: "{requests}",
 });
 
-const activeRequestUpDownCounter = meter.createUpDownCounter("http.server.active_requests", {
+const activeRequestUpDownCounter = meter.createUpDownCounter("fastify.server.active_requests", {
   description: "Number of in-flight requests",
   unit: "{requests}"
 })
 
-const requestDurHistogram = meter.createHistogram("http.client.request.duration", {
+const requestDurHistogram = meter.createHistogram("fastify.client.request.duration", {
   description: "The duration of an outgoing HTTP request.",
   unit: "ms",
 })
