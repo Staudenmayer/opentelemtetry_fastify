@@ -1,7 +1,8 @@
 import "dotenv/config";
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import { logger, meter, tracer } from './tracing'; // Ensure OpenTelemetry is initialized
 import axios from 'axios';
+import type { Span } from "@opentelemetry/api";
 
 const httpRequestCounter = meter.createCounter("fastify.server.requests", {
     description: "Total number of HTTP requests received.",
@@ -19,6 +20,28 @@ const requestDurHistogram = meter.createHistogram("fastify.client.request.durati
 })
 
 const fastify = Fastify({ logger: true });
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    span: Span
+  }
+}
+
+// Middleware to create spans manually for each request
+fastify.addHook('onRequest', async (request, reply) => {
+  const span = tracer.startSpan(`HTTP ${request.method} ${request.url}`);
+  span.setAttribute('http.method', request.method);
+  span.setAttribute('http.url', request.url);
+  span.setAttribute('http.headers', JSON.stringify(request.headers));
+  request.span = span;
+});
+
+fastify.addHook('onResponse', async (request, reply) => {
+  if (request.span) {
+    request.span.setAttribute('http.status_code', reply.statusCode);
+    request.span.end();
+  }
+});
 
 fastify.get('/', async (request, reply) => {
   httpRequestCounter.add(1);
@@ -40,7 +63,22 @@ fastify.get('/', async (request, reply) => {
   }
 });
 
-fastify.post('/data', async (request, reply) => {
+interface DataRequest {
+  data: string;
+}
+
+// Create the route with the schema validation
+fastify.post<{ Body: DataRequest }>('/data', {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['data'],
+      properties: {
+        data: { type: 'string' },
+      },
+    },
+  },
+}, async (request, reply) => {
   httpRequestCounter.add(1);
   if(request.body instanceof Object && Object.hasOwn(request.body, "data")) {
     return reply.code(200).send({message: request.body.data});
@@ -58,7 +96,23 @@ fastify.get('/delay', async (request, reply) => {
   requestDurHistogram.record(performance.now() - start, { method: 'GET', status: 200 });
 })
 
-fastify.post('/log', async (request, reply) => {
+interface LogRequest {
+  msg: string;
+  data: any;
+}
+
+fastify.post<{ Body: LogRequest }>('/log', {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['data'],
+      properties: {
+        msg: { type: 'string' },
+        data: { type: 'object' },
+      },
+    },
+  },
+}, async (request, reply) => {
   logger.emit({
     severityNumber: 14,
     body: `Log ${request.body?.msg}`,
@@ -70,6 +124,9 @@ fastify.post('/log', async (request, reply) => {
 fastify.get('/fetch', async (request, reply) => {
   const start = performance.now();
   try {
+    request.span.addEvent('/fetch', {
+      url: 'https://jsonplaceholder.typicode.com/todos/1'
+    });
     const response = await axios.get('https://jsonplaceholder.typicode.com/todos/1');
     return response.data;
   } finally {
